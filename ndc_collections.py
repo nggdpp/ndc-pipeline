@@ -12,18 +12,14 @@ doc_load = list()
 
 for collection in ndcCollection.ndc_get_collections():
     logged_collection = dict()
-    logged_collection['_id'] = collection['id']
-    logged_collection['Source Metadata'] = collection
+    logged_collection['collection_id'] = collection['id']
+    logged_collection['date_logged'] = datetime.utcnow().isoformat()
+    logged_collection['source_meta'] = collection
     logged_collection["collection_meta"] = ndcCollection.collection_metadata_summary(collection)
-    logged_collection['Logging Metadata'] = dict()
-
-    logged_collection['Logging Metadata']['Date Logged'] = datetime.utcnow().isoformat()
-    logged_collection['Logging Metadata']['Number Processable WAFs'] = 0
-    logged_collection['Logging Metadata']['Number Processable Files'] = 0
-
-    print(logged_collection['Source Metadata']['title'], collection["id"])
 
     doc_load.append(logged_collection)
+
+    print(logged_collection['source_meta']['title'], collection["id"])
 
 print(len(doc_load))
 

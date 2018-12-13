@@ -7,18 +7,49 @@ ndcProcessing.set_env_variables('docker.env')
 # Setup connection to mongodb on the DataDistillery platform
 mongo_client_datadistillery = ndcProcessing.mongodb_client()
 ndc_collections = mongo_client_datadistillery['ndc_collections']
-ndc_weblinks = mongo_client_datadistillery['ndc_weblinks']
 
-for collection in ndc_collections.find({"Source Metadata.webLinks": {"$exists": True}},
-                                       {"Source Metadata.webLinks": 1}):
+pipeline = [
+    {
+        u"$match": {
+            u"source_meta.webLinks": {
+                u"$exists": True
+            }
+        }
+    },
+    {
+        u"$unwind": {
+            u"path": u"$source_meta.webLinks"
+        }
+    },
+    {
+        u"$match": {
+            u"source_meta.webLinks.type": u"WAF"
+        }
+    },
+    {
+        u"$project": {
+            u"collection_id": True,
+            u"waf_link": u"$source_meta.webLinks"
+        }
+    },
+    {
+        u"$group": {
+            u"_id": u"$collection_id",
+            u"links": {
+                u"$push": u"$waf_link"
+            }
+        }
+    }
+]
 
-    if ndc_weblinks.find_one({"collection_id": collection["_id"]}) is None:
-        weblink_container = dict()
-        weblink_container["collection_id"] = collection["_id"]
-        weblink_container["Container Date"] = datetime.utcnow().isoformat()
-        weblink_container["Collection Links"] = ndcProcessing.link_meta(collection["_id"],
-                                                                     collection["Source Metadata"]["webLinks"])
-
-        ndc_weblinks.insert_one(weblink_container)
-        pprint(weblink_container)
-
+for waf_link_collection in ndc_collections.aggregate(pipeline):
+    wafs = list()
+    for link_meta in waf_link_collection["links"]:
+        processed_waf = ndcProcessing.parse_waf(link_meta)
+        if isinstance(processed_waf, dict):
+            wafs.append(processed_waf)
+        else:
+            print(processed_waf)
+    if len(wafs) > 0:
+        ndc_collections.update_one({"collection_id": waf_link_collection["_id"]}, {"$set": {"WAFs": wafs}})
+    print(waf_link_collection["_id"], len(wafs))
